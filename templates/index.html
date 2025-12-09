@@ -323,6 +323,15 @@
         <p class="subtitle">Expert at detecting original Pokemon game sprite images</p>
         <p class="subtitle" style="margin-top: 8px; font-size: 0.95em;">Upload a sprite image to detect whether it is pikachu or not</p>
 
+        <div class="model-upload-section" style="margin-top: 0; padding-top: 0; border-top: none;">
+            <div class="model-upload-title">Step 1: Upload Model File</div>
+            <div class="model-upload-area" id="modelUploadArea">
+                <div class="model-upload-text" id="modelUploadText">Click to upload a .pth model file (required)</div>
+                <input type="file" id="modelFileInput" accept=".pth">
+            </div>
+            <div class="model-success" id="modelSuccess"></div>
+        </div>
+
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon"></div>
             <div class="upload-text">Click or drag to upload</div>
@@ -347,15 +356,6 @@
         </div>
 
         <div class="error" id="errorArea"></div>
-
-        <div class="model-upload-section">
-            <div class="model-upload-title">Update Model</div>
-            <div class="model-upload-area" id="modelUploadArea">
-                <div class="model-upload-text">Click to upload a new .pth model file</div>
-                <input type="file" id="modelFileInput" accept=".pth">
-            </div>
-            <div class="model-success" id="modelSuccess"></div>
-        </div>
     </div>
 
     <script>
@@ -372,8 +372,32 @@
         const modelUploadArea = document.getElementById('modelUploadArea');
         const modelFileInput = document.getElementById('modelFileInput');
         const modelSuccess = document.getElementById('modelSuccess');
+        const modelUploadText = document.getElementById('modelUploadText');
 
         let selectedFile = null;
+        let modelLoaded = false;
+
+        // Check model status on page load
+        async function checkModelStatus() {
+            try {
+                const response = await fetch('/model_info');
+                const data = await response.json();
+                if (data.model_loaded) {
+                    modelLoaded = true;
+                    modelUploadText.textContent = `Model loaded: ${data.model_path || 'uploaded_model.pth'}`;
+                    modelSuccess.textContent = 'Model ready! You can now upload images for classification.';
+                    modelSuccess.classList.add('show');
+                } else {
+                    modelLoaded = false;
+                    modelUploadText.textContent = 'Click to upload a .pth model file (required)';
+                    modelSuccess.classList.remove('show');
+                }
+            } catch (error) {
+                console.error('Error checking model status:', error);
+            }
+        }
+
+        checkModelStatus();
 
         // Click to upload
         uploadArea.addEventListener('click', () => fileInput.click());
@@ -412,6 +436,12 @@
                 return;
             }
 
+            // Check if model is loaded
+            if (!modelLoaded) {
+                showError('Please upload a model file first before classifying images.');
+                return;
+            }
+
             selectedFile = file;
             predictBtn.disabled = false;
 
@@ -431,6 +461,11 @@
         // Predict button
         predictBtn.addEventListener('click', async () => {
             if (!selectedFile) return;
+            
+            if (!modelLoaded) {
+                showError('Please upload a model file first before classifying images.');
+                return;
+            }
 
             // Show loading, hide results
             loading.classList.add('show');
@@ -502,14 +537,17 @@
                         throw new Error(data.error || 'Failed to upload model');
                     }
 
-                    modelSuccess.textContent = data.message || 'Model updated successfully!';
+                    modelLoaded = true;
+                    modelSuccess.textContent = data.message || 'Model loaded successfully! You can now upload images for classification.';
                     modelSuccess.classList.add('show');
+                    modelUploadText.textContent = `Model loaded: ${data.model_path || 'uploaded_model.pth'}`;
                     
                     // Reset file input
                     modelFileInput.value = '';
                     
                 } catch (error) {
                     showError(error.message);
+                    modelLoaded = false;
                 } finally {
                     modelUploadArea.style.opacity = '1';
                     modelUploadArea.style.cursor = 'pointer';

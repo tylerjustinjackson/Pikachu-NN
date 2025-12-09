@@ -40,14 +40,14 @@ class PikachuNet(torch.nn.Module):
 
 
 model = None
-model_path = "pikachu_classifier.pth"
+model_path = None
 
 
 def load_model(path=None):
     """Load or reload the model from a .pth file"""
     global model, model_path
     if path is None:
-        path = model_path
+        return False
 
     if model is None:
         model = PikachuNet().to(device)
@@ -62,9 +62,6 @@ def load_model(path=None):
         print(f"Model file {path} not found!")
         return False
 
-
-if not load_model():
-    raise FileNotFoundError(f"Model file {model_path} not found!")
 
 transform = torchvision.transforms.Compose(
     [
@@ -113,6 +110,15 @@ def index():
 
 @app.route("/predict", methods=["POST"])
 def predict():
+    # Check if model is loaded
+    if model is None or model_path is None:
+        return (
+            jsonify(
+                {"error": "No model loaded. Please upload a .pth model file first."}
+            ),
+            400,
+        )
+
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
 
@@ -206,7 +212,7 @@ def upload_model():
 
                 final_path = secure_filename(file.filename)
                 if not final_path.endswith(".pth"):
-                    final_path = "pikachu_classifier.pth"
+                    final_path = "uploaded_model.pth"
                 else:
                     final_path = os.path.join(app.config["MODEL_FOLDER"], final_path)
 
@@ -214,6 +220,7 @@ def upload_model():
                 if os.path.exists(final_path):
                     os.remove(final_path)
                 os.rename(temp_model_path, final_path)
+                global model_path
                 model_path = final_path
 
                 return jsonify(
@@ -251,10 +258,13 @@ def model_info():
     """Get information about the currently loaded model"""
     return jsonify(
         {
-            "model_path": model_path,
-            "model_exists": os.path.exists(model_path),
+            "model_loaded": model is not None and model_path is not None,
+            "model_path": model_path if model_path else None,
+            "model_exists": os.path.exists(model_path) if model_path else False,
             "model_size": (
-                os.path.getsize(model_path) if os.path.exists(model_path) else 0
+                os.path.getsize(model_path)
+                if model_path and os.path.exists(model_path)
+                else 0
             ),
         }
     )
