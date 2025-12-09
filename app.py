@@ -6,18 +6,21 @@ import torchvision
 from PIL import Image
 import io
 
-app = Flask(__name__, static_folder='.', static_url_path='')
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MODEL_FOLDER'] = '.'
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB max file size (for model files)
-app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
-app.config['ALLOWED_MODEL_EXTENSIONS'] = {'pth'}
+app = Flask(__name__, static_folder=".", static_url_path="")
+app.config["UPLOAD_FOLDER"] = "uploads"
+app.config["MODEL_FOLDER"] = "."
+app.config["MAX_CONTENT_LENGTH"] = (
+    200 * 1024 * 1024
+)  # 200MB max file size (for model files)
+app.config["ALLOWED_EXTENSIONS"] = {"png", "jpg", "jpeg"}
+app.config["ALLOWED_MODEL_EXTENSIONS"] = {"pth"}
 
 # Create uploads directory if it doesn't exist
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
 # Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 # Model architecture (must match training code)
 class PikachuNet(torch.nn.Module):
@@ -38,19 +41,21 @@ class PikachuNet(torch.nn.Module):
         x = self.fc4(x)
         return x
 
+
 # Global model variable
 model = None
-model_path = 'pikachu_classifier.pth'
+model_path = "pikachu_classifier.pth"
+
 
 def load_model(path=None):
     """Load or reload the model from a .pth file"""
     global model, model_path
     if path is None:
         path = model_path
-    
+
     if model is None:
         model = PikachuNet().to(device)
-    
+
     if os.path.exists(path):
         model.load_state_dict(torch.load(path, map_location=device))
         model.eval()
@@ -61,21 +66,33 @@ def load_model(path=None):
         print(f"Model file {path} not found!")
         return False
 
+
 # Load the initial model
 if not load_model():
     raise FileNotFoundError(f"Model file {model_path} not found!")
 
 # Image transform (must match training transforms)
-transform = torchvision.transforms.Compose([
-    torchvision.transforms.ToTensor(),
-    torchvision.transforms.Normalize((0.5,), (0.5,)),
-])
+transform = torchvision.transforms.Compose(
+    [
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize((0.5,), (0.5,)),
+    ]
+)
+
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in app.config["ALLOWED_EXTENSIONS"]
+    )
+
 
 def allowed_model_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_MODEL_EXTENSIONS']
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower() in app.config["ALLOWED_MODEL_EXTENSIONS"]
+    )
+
 
 def preprocess_image(image):
     """Preprocess image for the model"""
@@ -87,6 +104,7 @@ def preprocess_image(image):
     image_tensor = transform(image).unsqueeze(0).to(device)
     return image_tensor
 
+
 def predict_image(image_tensor):
     """Make prediction on preprocessed image"""
     with torch.no_grad():
@@ -95,144 +113,170 @@ def predict_image(image_tensor):
         is_pikachu = probability >= 0.5
     return probability, is_pikachu
 
-@app.route('/')
-def index():
-    return render_template('index.html')
 
-@app.route('/predict', methods=['POST'])
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+
+@app.route("/predict", methods=["POST"])
 def predict():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-    
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files["file"]
+
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
     if not allowed_file(file.filename):
-        return jsonify({'error': 'Invalid file type. Please upload a PNG or JPG image.'}), 400
-    
+        return (
+            jsonify({"error": "Invalid file type. Please upload a PNG or JPG image."}),
+            400,
+        )
+
     try:
         # Reset file pointer to beginning (in case it was read before)
         file.seek(0)
-        
+
         # Read image from file
         image_bytes = file.read()
-        
+
         if not image_bytes:
-            return jsonify({'error': 'Empty file uploaded'}), 400
-        
+            return jsonify({"error": "Empty file uploaded"}), 400
+
         # Verify and open image
         try:
             image = Image.open(io.BytesIO(image_bytes))
             # Verify it's actually an image by trying to load it
             image.verify()
         except Exception as img_error:
-            return jsonify({'error': f'Invalid image file: {str(img_error)}'}), 400
-        
+            return jsonify({"error": f"Invalid image file: {str(img_error)}"}), 400
+
         # Reopen image after verify (verify closes the image)
         image = Image.open(io.BytesIO(image_bytes))
-        
+
         # Preprocess image
         image_tensor = preprocess_image(image)
-        
+
         # Make prediction
         probability, is_pikachu = predict_image(image_tensor)
-        
+
         # Format result
         result = {
-            'is_pikachu': bool(is_pikachu),
-            'confidence': round(probability * 100, 2),
-            'message': f"{'Pikachu detected!' if is_pikachu else 'Not Pikachu'} (Confidence: {probability * 100:.2f}%)"
+            "is_pikachu": bool(is_pikachu),
+            "confidence": round(probability * 100, 2),
+            "message": f"{'Pikachu detected!' if is_pikachu else 'Not Pikachu'} (Confidence: {probability * 100:.2f}%)",
         }
-        
-        return jsonify(result)
-    
-    except Exception as e:
-        return jsonify({'error': f'Error processing image: {str(e)}'}), 500
 
-@app.route('/upload_model', methods=['POST'])
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": f"Error processing image: {str(e)}"}), 500
+
+
+@app.route("/upload_model", methods=["POST"])
 def upload_model():
     """Endpoint to upload and reload a new .pth model file"""
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-    
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files["file"]
+
+    if file.filename == "":
+        return jsonify({"error": "No file selected"}), 400
+
     if not allowed_model_file(file.filename):
-        return jsonify({'error': 'Invalid file type. Please upload a .pth model file.'}), 400
-    
+        return (
+            jsonify({"error": "Invalid file type. Please upload a .pth model file."}),
+            400,
+        )
+
     try:
         # Reset file pointer
         file.seek(0)
-        
+
         # Read the model file
         model_bytes = file.read()
-        
+
         if not model_bytes:
-            return jsonify({'error': 'Empty file uploaded'}), 400
-        
+            return jsonify({"error": "Empty file uploaded"}), 400
+
         # Save the uploaded model to a temporary location first
-        temp_model_path = 'temp_model.pth'
-        with open(temp_model_path, 'wb') as f:
+        temp_model_path = "temp_model.pth"
+        with open(temp_model_path, "wb") as f:
             f.write(model_bytes)
-        
+
         # Try to load the new model
         try:
             if load_model(temp_model_path):
                 # If successful, backup old model and replace it
-                if os.path.exists(model_path) and model_path != 'pikachu_classifier.pth':
+                if (
+                    os.path.exists(model_path)
+                    and model_path != "pikachu_classifier.pth"
+                ):
                     # Keep backup of old model
-                    backup_path = model_path.replace('.pth', '_backup.pth')
+                    backup_path = model_path.replace(".pth", "_backup.pth")
                     if os.path.exists(backup_path):
                         os.remove(backup_path)
                     os.rename(model_path, backup_path)
-                
+
                 # Use the original filename or keep as temp
                 final_path = secure_filename(file.filename)
-                if not final_path.endswith('.pth'):
-                    final_path = 'pikachu_classifier.pth'
+                if not final_path.endswith(".pth"):
+                    final_path = "pikachu_classifier.pth"
                 else:
-                    final_path = os.path.join(app.config['MODEL_FOLDER'], final_path)
-                
+                    final_path = os.path.join(app.config["MODEL_FOLDER"], final_path)
+
                 # Move temp file to final location
                 if os.path.exists(final_path):
                     os.remove(final_path)
                 os.rename(temp_model_path, final_path)
                 model_path = final_path
-                
-                return jsonify({
-                    'success': True,
-                    'message': f'Model successfully updated from {file.filename}',
-                    'model_path': model_path
-                })
+
+                return jsonify(
+                    {
+                        "success": True,
+                        "message": f"Model successfully updated from {file.filename}",
+                        "model_path": model_path,
+                    }
+                )
             else:
                 # Clean up temp file if loading failed
                 if os.path.exists(temp_model_path):
                     os.remove(temp_model_path)
-                return jsonify({'error': 'Failed to load model. The file may be corrupted or incompatible.'}), 400
-                
+                return (
+                    jsonify(
+                        {
+                            "error": "Failed to load model. The file may be corrupted or incompatible."
+                        }
+                    ),
+                    400,
+                )
+
         except Exception as load_error:
             # Clean up temp file on error
             if os.path.exists(temp_model_path):
                 os.remove(temp_model_path)
-            return jsonify({'error': f'Error loading model: {str(load_error)}'}), 400
-    
-    except Exception as e:
-        return jsonify({'error': f'Error processing model file: {str(e)}'}), 500
+            return jsonify({"error": f"Error loading model: {str(load_error)}"}), 400
 
-@app.route('/model_info', methods=['GET'])
+    except Exception as e:
+        return jsonify({"error": f"Error processing model file: {str(e)}"}), 500
+
+
+@app.route("/model_info", methods=["GET"])
 def model_info():
     """Get information about the currently loaded model"""
-    return jsonify({
-        'model_path': model_path,
-        'model_exists': os.path.exists(model_path),
-        'model_size': os.path.getsize(model_path) if os.path.exists(model_path) else 0
-    })
+    return jsonify(
+        {
+            "model_path": model_path,
+            "model_exists": os.path.exists(model_path),
+            "model_size": (
+                os.path.getsize(model_path) if os.path.exists(model_path) else 0
+            ),
+        }
+    )
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5001)
 
+if __name__ == "__main__":
+    app.run()
