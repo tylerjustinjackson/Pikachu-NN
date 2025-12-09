@@ -15,14 +15,11 @@ app.config["MAX_CONTENT_LENGTH"] = (
 app.config["ALLOWED_EXTENSIONS"] = {"png", "jpg", "jpeg"}
 app.config["ALLOWED_MODEL_EXTENSIONS"] = {"pth"}
 
-# Create uploads directory if it doesn't exist
 os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-# Device setup
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# Model architecture (must match training code)
 class PikachuNet(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -42,7 +39,6 @@ class PikachuNet(torch.nn.Module):
         return x
 
 
-# Global model variable
 model = None
 model_path = "pikachu_classifier.pth"
 
@@ -67,11 +63,9 @@ def load_model(path=None):
         return False
 
 
-# Load the initial model
 if not load_model():
     raise FileNotFoundError(f"Model file {model_path} not found!")
 
-# Image transform (must match training transforms)
 transform = torchvision.transforms.Compose(
     [
         torchvision.transforms.ToTensor(),
@@ -98,9 +92,7 @@ def preprocess_image(image):
     """Preprocess image for the model"""
     # Resize to 128x128
     image = image.resize((128, 128), Image.Resampling.LANCZOS)
-    # Convert to RGBA
     image = image.convert("RGBA")
-    # Apply transforms
     image_tensor = transform(image).unsqueeze(0).to(device)
     return image_tensor
 
@@ -136,10 +128,8 @@ def predict():
         )
 
     try:
-        # Reset file pointer to beginning (in case it was read before)
         file.seek(0)
 
-        # Read image from file
         image_bytes = file.read()
 
         if not image_bytes:
@@ -153,13 +143,10 @@ def predict():
         except Exception as img_error:
             return jsonify({"error": f"Invalid image file: {str(img_error)}"}), 400
 
-        # Reopen image after verify (verify closes the image)
         image = Image.open(io.BytesIO(image_bytes))
 
-        # Preprocess image
         image_tensor = preprocess_image(image)
 
-        # Make prediction
         probability, is_pikachu = predict_image(image_tensor)
 
         # Format result
@@ -193,10 +180,8 @@ def upload_model():
         )
 
     try:
-        # Reset file pointer
         file.seek(0)
 
-        # Read the model file
         model_bytes = file.read()
 
         if not model_bytes:
@@ -207,10 +192,8 @@ def upload_model():
         with open(temp_model_path, "wb") as f:
             f.write(model_bytes)
 
-        # Try to load the new model
         try:
             if load_model(temp_model_path):
-                # If successful, backup old model and replace it
                 if (
                     os.path.exists(model_path)
                     and model_path != "pikachu_classifier.pth"
@@ -221,7 +204,6 @@ def upload_model():
                         os.remove(backup_path)
                     os.rename(model_path, backup_path)
 
-                # Use the original filename or keep as temp
                 final_path = secure_filename(file.filename)
                 if not final_path.endswith(".pth"):
                     final_path = "pikachu_classifier.pth"
