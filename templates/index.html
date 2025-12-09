@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pikachu Classifier</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            background: #000000;
+            background-image: url('/images/bb543feec97c5d66dfd0551d55034032.jpg');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 0;
+        }
+
+        .container {
+            background: rgba(255, 255, 0, 0.95);
+            border: 3px solid #000000;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            padding: 48px;
+            max-width: 640px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        h1 {
+            color: #000000;
+            margin-bottom: 8px;
+            font-size: 2em;
+            font-weight: 700;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(255, 255, 0, 0.3);
+        }
+
+        .subtitle {
+            color: #333333;
+            margin-bottom: 32px;
+            font-size: 1em;
+            text-align: center;
+            font-weight: 500;
+        }
+
+        .upload-area {
+            border: 3px dashed #000000;
+            border-radius: 6px;
+            padding: 48px 24px;
+            margin: 32px 0;
+            background: rgba(255, 255, 0, 0.3);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .upload-area:hover {
+            border-color: #333333;
+            background: rgba(255, 255, 0, 0.5);
+        }
+
+        .upload-area.dragover {
+            border-color: #000000;
+            background: rgba(255, 255, 0, 0.7);
+            border-style: solid;
+        }
+
+        .upload-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 16px;
+            border: 3px solid #000000;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #000000;
+            font-size: 24px;
+            font-weight: 300;
+            background: rgba(255, 255, 0, 0.5);
+        }
+
+        .upload-icon::before {
+            content: "↑";
+        }
+
+        .upload-text {
+            color: #000000;
+            font-size: 1.1em;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .upload-hint {
+            color: #333333;
+            font-size: 0.875em;
+            font-weight: 500;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .btn {
+            background: #000000;
+            color: #ffff00;
+            border: 2px solid #000000;
+            padding: 12px 32px;
+            font-size: 1em;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-top: 24px;
+            font-weight: 600;
+            width: 100%;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: #333333;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .preview-area {
+            margin: 32px 0;
+            display: none;
+        }
+
+        .preview-area.show {
+            display: block;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            margin: 0 auto;
+            display: block;
+            border: 3px solid #000000;
+        }
+
+        .result-area {
+            margin-top: 32px;
+            padding: 24px;
+            border-radius: 6px;
+            display: none;
+            border-left: 4px solid;
+            border: 3px solid #000000;
+        }
+
+        .result-area.show {
+            display: block;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-pikachu {
+            background: rgba(255, 255, 0, 0.9);
+            border-left-color: #000000;
+            color: #000000;
+        }
+
+        .result-not-pikachu {
+            background: rgba(0, 0, 0, 0.9);
+            border-left-color: #ffff00;
+            color: #ffff00;
+        }
+
+        .result-title {
+            font-size: 1.5em;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .result-confidence {
+            font-size: 1em;
+            opacity: 0.9;
+            font-weight: 500;
+        }
+
+        .loading {
+            display: none;
+            margin: 24px 0;
+            text-align: center;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid rgba(0, 0, 0, 0.2);
+            border-top: 3px solid #000000;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 12px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #000000;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .error {
+            background: rgba(0, 0, 0, 0.9);
+            color: #ffff00;
+            padding: 16px;
+            border-radius: 6px;
+            margin-top: 24px;
+            display: none;
+            border-left: 4px solid #ffff00;
+            border: 3px solid #ffff00;
+            font-weight: 500;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .model-upload-section {
+            margin-top: 32px;
+            padding-top: 32px;
+            border-top: 2px solid #000000;
+        }
+
+        .model-upload-title {
+            color: #000000;
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .model-upload-area {
+            border: 2px dashed #000000;
+            border-radius: 6px;
+            padding: 24px;
+            margin: 16px 0;
+            background: rgba(255, 255, 0, 0.2);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .model-upload-area:hover {
+            background: rgba(255, 255, 0, 0.4);
+        }
+
+        .model-upload-text {
+            color: #000000;
+            font-size: 0.9em;
+            font-weight: 500;
+        }
+
+        .model-success {
+            background: rgba(255, 255, 0, 0.9);
+            color: #000000;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 12px;
+            display: none;
+            border: 2px solid #000000;
+            font-weight: 500;
+        }
+
+        .model-success.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Pikachu Classifier</h1>
+        <p class="subtitle">Expert at detecting original Pokemon game sprite images</p>
+        <p class="subtitle" style="margin-top: 8px; font-size: 0.95em;">Upload a sprite image to detect whether it is pikachu or not</p>
+
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon"></div>
+            <div class="upload-text">Click or drag to upload</div>
+            <div class="upload-hint">Upload an original Pokemon game sprite image (JPG or PNG)</div>
+            <input type="file" id="fileInput" accept="image/png,image/jpeg,image/jpg">
+        </div>
+
+        <button class="btn" id="predictBtn" disabled>Classify Image</button>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p class="loading-text">Analyzing image...</p>
+        </div>
+
+        <div class="preview-area" id="previewArea">
+            <img id="previewImage" class="preview-image" alt="Preview">
+        </div>
+
+        <div class="result-area" id="resultArea">
+            <div class="result-title" id="resultTitle"></div>
+            <div class="result-confidence" id="resultConfidence"></div>
+        </div>
+
+        <div class="error" id="errorArea"></div>
+
+        <div class="model-upload-section">
+            <div class="model-upload-title">Update Model</div>
+            <div class="model-upload-area" id="modelUploadArea">
+                <div class="model-upload-text">Click to upload a new .pth model file</div>
+                <input type="file" id="modelFileInput" accept=".pth">
+            </div>
+            <div class="model-success" id="modelSuccess"></div>
+        </div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const predictBtn = document.getElementById('predictBtn');
+        const previewArea = document.getElementById('previewArea');
+        const previewImage = document.getElementById('previewImage');
+        const resultArea = document.getElementById('resultArea');
+        const resultTitle = document.getElementById('resultTitle');
+        const resultConfidence = document.getElementById('resultConfidence');
+        const loading = document.getElementById('loading');
+        const errorArea = document.getElementById('errorArea');
+        const modelUploadArea = document.getElementById('modelUploadArea');
+        const modelFileInput = document.getElementById('modelFileInput');
+        const modelSuccess = document.getElementById('modelSuccess');
+
+        let selectedFile = null;
+
+        // Click to upload
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            // Validate file type
+            const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+            if (!validTypes.includes(file.type)) {
+                showError('Please upload a PNG or JPG image.');
+                return;
+            }
+
+            selectedFile = file;
+            predictBtn.disabled = false;
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewArea.classList.add('show');
+            };
+            reader.readAsDataURL(file);
+
+            // Hide previous results
+            resultArea.classList.remove('show');
+            errorArea.classList.remove('show');
+        }
+
+        // Predict button
+        predictBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            // Show loading, hide results
+            loading.classList.add('show');
+            resultArea.classList.remove('show');
+            errorArea.classList.remove('show');
+            predictBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'An error occurred');
+                }
+
+                // Show results
+                resultTitle.textContent = data.is_pikachu ? 'Pikachu Detected' : 'Not Pikachu';
+                resultConfidence.textContent = `Confidence: ${data.confidence}%`;
+                resultArea.className = 'result-area show ' + (data.is_pikachu ? 'result-pikachu' : 'result-not-pikachu');
+                
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                loading.classList.remove('show');
+                predictBtn.disabled = false;
+            }
+        });
+
+        function showError(message) {
+            errorArea.textContent = message;
+            errorArea.classList.add('show');
+        }
+
+        // Model upload functionality
+        modelUploadArea.addEventListener('click', () => modelFileInput.click());
+
+        modelFileInput.addEventListener('change', async (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                
+                if (!file.name.endsWith('.pth')) {
+                    showError('Please upload a .pth model file.');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                modelSuccess.classList.remove('show');
+                modelUploadArea.style.opacity = '0.6';
+                modelUploadArea.style.cursor = 'wait';
+
+                try {
+                    const response = await fetch('/upload_model', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to upload model');
+                    }
+
+                    modelSuccess.textContent = data.message || 'Model updated successfully!';
+                    modelSuccess.classList.add('show');
+                    
+                    // Reset file input
+                    modelFileInput.value = '';
+                    
+                } catch (error) {
+                    showError(error.message);
+                } finally {
+                    modelUploadArea.style.opacity = '1';
+                    modelUploadArea.style.cursor = 'pointer';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
