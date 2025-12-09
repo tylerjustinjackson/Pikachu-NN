@@ -171,6 +171,7 @@ def predict():
 @app.route("/upload_model", methods=["POST"])
 def upload_model():
     """Endpoint to upload and reload a new .pth model file"""
+    global model_path
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
 
@@ -220,7 +221,6 @@ def upload_model():
                 if os.path.exists(final_path):
                     os.remove(final_path)
                 os.rename(temp_model_path, final_path)
-                global model_path
                 model_path = final_path
 
                 return jsonify(
